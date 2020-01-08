@@ -1,5 +1,6 @@
 import cv2
-from flask import Flask, Response, request
+from flask import Flask, Response, request, jsonify
+from datetime import datetime
 import json
 import requests
 import threading
@@ -17,14 +18,21 @@ MOTOR_SERVER='http://motor.example.com/'
 video = cv2.VideoCapture(0)
 video.set(cv2.CAP_PROP_FPS, 10)
 frame = None
+MAX_FRAME_COUNT = 10000 # 
+recent_frames = [] # (timestamp, frame)
+
+# kingyo_list
+kingyos = []
+kingyo_id = 0
 
 # for face detection TODO: Replate face detection to kingyo detection
 face_img = None
 cascade_path = "haarcascade_frontalface_alt.xml"
 cascade = cv2.CascadeClassifier(cascade_path)
+print(datetime.now())
 
 def get_frame():
-    global frame
+    global frame, recent_frames
     while True:
         ok, img = video.read()
         if not ok:
@@ -32,6 +40,9 @@ def get_frame():
         ok, jpg = cv2.imencode(".jpg", img)
         if not ok:
             return
+        recent_frames.append((datetime.now().timestamp(), img))
+        if len(recent_frames) >= MAX_FRAME_COUNT:
+            recent_frames = recent_frames[:MAX_FRAME_COUNT]
         frame = jpg.tobytes()
 
         threading.Thread(target=face_detect, args=[img]).start()
@@ -72,7 +83,7 @@ def face_feed():
 
 @app.route('/camera-move', methods=['POST'])
 def camera_move():
-    req = request.json()
+    req = request.json
     requests.post(MOTOR_SERVER + "/camera_move", data=json.dumps(req))
 
 @app.route('/')
@@ -83,6 +94,28 @@ def index():
 def face():
     return '<img src="/face.mjpeg" />'
 
+
+@app.route('/kingyo-register', methods=['POST'])
+def kingyo_register():
+    global kingyos, kingyo_id
+
+    j = request.json
+    t = j["timestamp"]
+    infos = j["kingyo-info"]
+
+    # bisect_left(t, frame_list)
+    for kingyo in infos:
+        kingyos.append({
+            "name": kingyo["name"],
+            "id": kingyo_id,
+        })
+        kingyo_id += 1
+    return ""
+
+@app.route('/all-kingyo-list')
+def all_kingyo_list():
+    return jsonify(sorted(kingyos, key=lambda x: x["id"]))
+    
 
 threading.Thread(target=get_frame).start()
 app.run(port=os.environ.get("PORT", 5000))
