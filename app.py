@@ -1,5 +1,7 @@
 import cv2
-from flask import Flask, Response
+from flask import Flask, Response, request
+import json
+import requests
 import threading
 import os
 import time
@@ -8,11 +10,15 @@ if __name__ != '__main__':
     print("[!] this should be used as main")
     exit()
 
+# motor server
+MOTOR_SERVER='http://motor.example.com/'
 
 # initialize camera at launch
 video = cv2.VideoCapture(0)
 video.set(cv2.CAP_PROP_FPS, 10)
 frame = None
+
+# for face detection TODO: Replate face detection to kingyo detection
 face_img = None
 cascade_path = "haarcascade_frontalface_alt.xml"
 cascade = cv2.CascadeClassifier(cascade_path)
@@ -63,6 +69,11 @@ def generateFaceFrames():
 def face_feed():
     return Response(generateFaceFrames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/camera-move', methods=['POST'])
+def camera_move():
+    req = request.json()
+    requests.post(MOTOR_SERVER + "/camera_move", data=json.dumps(req))
 
 @app.route('/')
 def index():
