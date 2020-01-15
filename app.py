@@ -1,4 +1,5 @@
 import cv2
+import kingyo_learn.kingyo_v2 as K
 from flask import Flask, Response, request, jsonify
 from datetime import datetime
 import json
@@ -6,56 +7,56 @@ import requests
 import threading
 import os
 import time
+import sys
 
 if __name__ != '__main__':
     print("[!] this should be used as main")
     exit()
 
 # motor server
-MOTOR_SERVER='http://motor.example.com/'
+MOTOR_SERVER='http://motor.example.com'
 
 # initialize camera at launch
-video = cv2.VideoCapture(0)
-video.set(cv2.CAP_PROP_FPS, 10)
+if len(sys.argv) > 1:
+    MOTOR_SERVER = "http://" + sys.argv[1] + "/"
+    video = cv2.VideoCapture("http://" + sys.argv[1] + ":8080/?action=stream")
+else:
+    video = cv2.VideoCapture(0)
+# video.set(cv2.CAP_PROP_FPS, 30)
 frame = None
+frame_id = 0
 MAX_FRAME_COUNT = 10000 # 
-recent_frames = [] # (timestamp, frame)
+recent_frames = [] # (timestamp, frame_id, frame)
 
 # kingyo_list
 kingyos = []
+kingyo_frame = None
 kingyo_id = 0
 
-# for face detection TODO: Replate face detection to kingyo detection
-face_img = None
-cascade_path = "haarcascade_frontalface_alt.xml"
-cascade = cv2.CascadeClassifier(cascade_path)
-print(datetime.now())
-
 def get_frame():
-    global frame, recent_frames
+    global frame, frame_id, kingyo_frame, recent_frames
     while True:
         ok, img = video.read()
         if not ok:
             return
+
+        recent_frames.append((datetime.now().timestamp(), frame_id, img))
+        if len(recent_frames) >= MAX_FRAME_COUNT:
+            recent_frames = recent_frames[:MAX_FRAME_COUNT]
+
+        kingyo_img = K.learnFrame(img, frame_id)
+        frame_id += 1
+
         ok, jpg = cv2.imencode(".jpg", img)
         if not ok:
             return
-        recent_frames.append((datetime.now().timestamp(), img))
-        if len(recent_frames) >= MAX_FRAME_COUNT:
-            recent_frames = recent_frames[:MAX_FRAME_COUNT]
         frame = jpg.tobytes()
 
-        threading.Thread(target=face_detect, args=[img]).start()
+        ok, kingyo_jpg = cv2.imencode(".jpg", kingyo_img)
+        if not ok:
+            return
+        kingyo_frame = kingyo_jpg.tobytes()
 
-def face_detect(img):
-    global face_img
-    grayscale_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    front_face_list = cascade.detectMultiScale(grayscale_img, minSize = (100, 100))
-
-    for (x,y,w,h) in front_face_list:
-        cv2.rectangle(img, (x,y), (x+w, y+h), (0, 0, 255), thickness=10)
-    ok, jpg = cv2.imencode(".jpg", img)
-    face_img = jpg.tobytes()
 
 app = Flask(__name__)
 
@@ -70,29 +71,30 @@ def video_feed():
     return Response(generateFrames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
-def generateFaceFrames():
+def generateKingyoFrames():
     while True:
         time.sleep(0.5)
         yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + face_img + b'\r\n\r\n')
+               b'Content-Type: image/jpeg\r\n\r\n' + kingyo_frame + b'\r\n\r\n')
 
-@app.route('/face.mjpeg')
-def face_feed():
-    return Response(generateFaceFrames(),
+@app.route('/kingyo.mjpeg')
+def kingyo_feed():
+    return Response(generateKingyoFrames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/camera-move', methods=['POST'])
 def camera_move():
     req = request.json
-    requests.post(MOTOR_SERVER + "/camera_move", data=json.dumps(req))
+    r = requests.post(os.path.join(MOTOR_SERVER + "camera-move"), data=json.dumps(req), headers={'Content-Type': 'application/json'})
+    return r.text
 
 @app.route('/')
 def index():
     return '<img src="/streaming.mjpeg" />'
 
-@app.route('/face')
-def face():
-    return '<img src="/face.mjpeg" />'
+@app.route('/kingyo')
+def kingyo():
+    return '<img src="/kingyo.mjpeg" />'
 
 
 @app.route('/kingyo-register', methods=['POST'])
@@ -115,7 +117,7 @@ def kingyo_register():
 @app.route('/all-kingyo-list')
 def all_kingyo_list():
     return jsonify(sorted(kingyos, key=lambda x: x["id"]))
-    
+
 
 threading.Thread(target=get_frame).start()
 app.run(port=os.environ.get("PORT", 5000))

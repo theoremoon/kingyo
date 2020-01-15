@@ -9,6 +9,10 @@ verify_ssl = true
 flask = "*"
 opencv-python = "*"
 requests = "*"
+chainer = "==6.5.0"
+numpy = "*"
+matplotlib = "*"
+opencv-contrib-python = "*"
 
 [requires]
 python_version = "3.7"

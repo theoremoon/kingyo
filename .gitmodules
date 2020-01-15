@@ -1,0 +1,3 @@
+[submodule "kingyo_learn"]
+	path = kingyo_learn
+	url = https://github.com/teruto725/kingyo_learn
