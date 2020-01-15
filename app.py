@@ -8,6 +8,7 @@ import threading
 import os
 import time
 import sys
+import bisect
 
 if __name__ != '__main__':
     print("[!] this should be used as main")
@@ -25,8 +26,10 @@ else:
 # video.set(cv2.CAP_PROP_FPS, 30)
 frame = None
 frame_id = 0
-MAX_FRAME_COUNT = 10000 # 
-recent_frames = [] # (timestamp, frame_id, frame)
+MAX_FRAME_COUNT = 10000
+recent_timestamp = []
+recent_frameid = []
+recent_frame = []
 
 # kingyo_list
 kingyos = []
@@ -34,17 +37,21 @@ kingyo_frame = None
 kingyo_id = 0
 
 def get_frame():
-    global frame, frame_id, kingyo_frame, recent_frames
+    global frame, frame_id, kingyo_frame, recent_frame, recent_timestamp, recent_frameid
     while True:
         ok, img = video.read()
         if not ok:
             return
 
-        recent_frames.append((datetime.now().timestamp(), frame_id, img))
-        if len(recent_frames) >= MAX_FRAME_COUNT:
-            recent_frames = recent_frames[:MAX_FRAME_COUNT]
-
         kingyo_img = K.learnFrame(img, frame_id)
+        recent_timestamp.append(datetime.now().timestamp())
+        recent_frame.append(img)
+        recent_frameid.append(frame_id)
+        if len(recent_timestamp) >= MAX_FRAME_COUNT:
+            recent_timestamp = recent_timestamp[:MAX_FRAME_COUNT]
+            recent_frameid = recent_frameid[:MAX_FRAME_COUNT]
+            recent_frame = recent_frame[:MAX_FRAME_COUNT]
+
         frame_id += 1
 
         ok, jpg = cv2.imencode(".jpg", img)
@@ -103,15 +110,38 @@ def kingyo_register():
 
     j = request.json
     t = j["timestamp"]
-    infos = j["kingyo-info"]
+    bisect.bisect_left()
 
-    # bisect_left(t, frame_list)
-    for kingyo in infos:
-        kingyos.append({
-            "name": kingyo["name"],
-            "id": kingyo_id,
-        })
-        kingyo_id += 1
+    kingyo_info = j["kingyo-info"]
+
+    # RESTART FROM HERE
+    index = bisect_left(t, recent_timestamp)
+    frame_id = recent_frameid[index]
+    kingyos.append({
+        "name": kingyo["name"],
+        "id": kingyo_id,
+    })
+    kingyo_id += 1
+    K.nameNewKingyo(kingyo["name"], frame_id, [kingyo["x"], kingyo["y"]])
+    return ""
+
+@app.route('/kingyo-rename', methods=['POST'])
+def kingyo_rename():
+    j = request.json
+    t = j["timestamp"]
+    bisect.bisect_left()
+
+    kingyo_info = j["info"]
+
+    # RESTART FROM HERE
+    index = bisect_left(t, recent_timestamp)
+    frame_id = recent_frameid[index]
+    kingyos.append({
+        "name": kingyo["name"],
+        "id": kingyo_id,
+    })
+    kingyo_id += 1
+    K.renameKingyo(kingyo["name"], frame_id, [kingyo["x"], kingyo["y"]])
     return ""
 
 @app.route('/all-kingyo-list')
