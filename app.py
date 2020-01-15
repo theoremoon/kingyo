@@ -1,6 +1,7 @@
 import cv2
 import kingyo_learn.kingyo_v2 as K
 from flask import Flask, Response, request, jsonify
+from flask_cors import CORS
 from datetime import datetime
 import json
 import requests
@@ -66,6 +67,7 @@ def get_frame():
 
 
 app = Flask(__name__)
+CORS(app)
 
 def generateFrames():
     while True:
@@ -73,7 +75,7 @@ def generateFrames():
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
 
-@app.route('/streaming.mjpeg')
+@app.route('/camera.mjpeg')
 def video_feed():
     return Response(generateFrames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
@@ -84,7 +86,7 @@ def generateKingyoFrames():
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + kingyo_frame + b'\r\n\r\n')
 
-@app.route('/kingyo.mjpeg')
+@app.route('/streaming.mjpeg')
 def kingyo_feed():
     return Response(generateKingyoFrames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
@@ -97,11 +99,11 @@ def camera_move():
 
 @app.route('/')
 def index():
-    return '<img src="/streaming.mjpeg" />'
+    return '<img src="/camera.mjpeg" />'
 
 @app.route('/kingyo')
 def kingyo():
-    return '<img src="/kingyo.mjpeg" />'
+    return '<img src="/streaming.mjpeg" />'
 
 
 @app.route('/kingyo-register', methods=['POST'])
@@ -110,12 +112,11 @@ def kingyo_register():
 
     j = request.json
     t = j["timestamp"]
-    bisect.bisect_left()
 
-    kingyo_info = j["kingyo-info"]
+    kingyo = j["kingyo"]
 
     # RESTART FROM HERE
-    index = bisect_left(t, recent_timestamp)
+    index = bisect.bisect_left(recent_timestamp, t)
     frame_id = recent_frameid[index]
     kingyos.append({
         "name": kingyo["name"],
@@ -129,18 +130,11 @@ def kingyo_register():
 def kingyo_rename():
     j = request.json
     t = j["timestamp"]
-    bisect.bisect_left()
 
-    kingyo_info = j["info"]
+    kingyo = j["info"]
 
-    # RESTART FROM HERE
-    index = bisect_left(t, recent_timestamp)
+    index = bisect.bisect_left(recent_timestamp, t)
     frame_id = recent_frameid[index]
-    kingyos.append({
-        "name": kingyo["name"],
-        "id": kingyo_id,
-    })
-    kingyo_id += 1
     K.renameKingyo(kingyo["name"], frame_id, [kingyo["x"], kingyo["y"]])
     return ""
 
