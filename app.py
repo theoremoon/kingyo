@@ -23,7 +23,7 @@ if len(sys.argv) > 1:
     MOTOR_SERVER = "http://" + sys.argv[1] + "/"
     video = cv2.VideoCapture("http://" + sys.argv[1] + ":8080/?action=stream")
 else:
-    video = cv2.VideoCapture(0)
+    video = cv2.VideoCapture(1)
 # video.set(cv2.CAP_PROP_FPS, 30)
 frame = None
 frame_id = 0
