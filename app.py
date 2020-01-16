@@ -23,7 +23,7 @@ if len(sys.argv) > 1:
     MOTOR_SERVER = "http://" + sys.argv[1] + "/"
     video = cv2.VideoCapture("http://" + sys.argv[1] + ":8080/?action=stream")
 else:
-    video = cv2.VideoCapture(1)
+    video = cv2.VideoCapture(0)
 # video.set(cv2.CAP_PROP_FPS, 30)
 frame = None
 frame_id = 0
@@ -43,6 +43,8 @@ def get_frame():
         ok, img = video.read()
         if not ok:
             return
+
+        img = cv2.flip(img, 0)
 
         kingyo_img = K.learnFrame(img, frame_id)
         recent_timestamp.append(datetime.now().timestamp())
@@ -115,7 +117,6 @@ def kingyo_register():
 
     kingyo = j["kingyo"]
 
-    # RESTART FROM HERE
     index = bisect.bisect_left(recent_timestamp, t)
     frame_id = recent_frameid[index]
     kingyos.append({
@@ -123,6 +124,7 @@ def kingyo_register():
         "id": kingyo_id,
     })
     kingyo_id += 1
+    cv2.imwrite("kingyo.png", recent_frame[index])
     K.nameNewKingyo(kingyo["name"], frame_id, [kingyo["x"], kingyo["y"]])
     return ""
 
