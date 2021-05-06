@@ -12,7 +12,7 @@ requests = "^2.22.0"
 numpy = "^1.18.1"
 matplotlib = "^3.1.2"
 chainer = "6.5.0"
-flask-cors = "^3.0.8"
+flask-cors = "^3.0.9"
 
 [tool.poetry.dev-dependencies]
 
